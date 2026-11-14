@@ -53,8 +53,18 @@ s.sendall(("screendump %s\n" % sys.argv[2]).encode()); time.sleep(3)
 PY
     command -v convert >/dev/null && convert "$OUT/$1.ppm" "$OUT/$1.png" 2>/dev/null
 }
+keys() {   # press keys in the VM: keys tab tab ret
+    python3 - "$MON" "$@" <<'PY' || true
+import socket, sys, time
+s = socket.socket(socket.AF_UNIX); s.connect(sys.argv[1]); time.sleep(0.5)
+for k in sys.argv[2:]:
+    s.sendall(("sendkey %s\n" % k).encode()); time.sleep(1)
+PY
+}
 # three looks at the screen: early, middle and end (shows a desktop that came up and went away)
 sleep $(( SECS / 3 )); shot live-1
+# an installer welcome screen (Try / Install) may be in the way: BOOT_KEYS answers it
+[ -n "${BOOT_KEYS:-}" ] && { keys $BOOT_KEYS; sleep 90; shot live-after-keys; }
 sleep $(( SECS / 3 )); shot live-2
 sleep $(( SECS / 3 )); shot live
 kill "$QEMU" 2>/dev/null; wait "$QEMU" 2>/dev/null
