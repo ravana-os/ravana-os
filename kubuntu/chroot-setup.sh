@@ -35,9 +35,10 @@ echo "steam steam/license note" | debconf-set-selections
 
 optional() { for p in "$@"; do apt-get install -y -qq --no-install-recommends "$p" || echo "::warning::optional package $p not installed"; done; }
 
-# --- what Ravana Shell needs
-apt-get install -y -qq --no-install-recommends python3-dbus python3-gi fonts-inter os-prober ddcutil
-xargs -a /tmp/quickshell-runtime-packages.txt apt-get install -y -qq --no-install-recommends
+# --- what the macOS look needs
+apt-get install -y -qq --no-install-recommends git ca-certificates fonts-inter os-prober qt6-style-kvantum kvantum \
+    sassc gtk2-engines-murrine libglib2.0-dev-bin 2>&1 | tail -3 || true
+apt-get install -y -qq --no-install-recommends qt6-style-kvantum fonts-inter os-prober git ca-certificates
 
 # --- gaming
 apt-get install -y -qq steam-installer
@@ -50,27 +51,69 @@ for OSR in /usr/lib/os-release; do
     grep -q '^LOGO=' "$OSR" && sed -i 's/^LOGO=.*/LOGO=ravana-os/' "$OSR" || echo 'LOGO=ravana-os' >> "$OSR"
 done
 
-# --- Ravana Shell: installed next to Plasma's own shell; a per-user setting picks one (default: classic Plasma)
-test -x /usr/bin/quickshell
-test -f /usr/share/ravana/shell/shell.qml
-systemctl --global enable ravana-shell.service ravana-osd.service
-rm -f /etc/xdg/autostart/ravana-look-update.desktop
-test -x /usr/bin/ravana-ui && test -f /etc/ravana/ui
-echo i2c-dev > /usr/lib/modules-load.d/ravana-ddc.conf
-mkdir -p /etc/sddm.conf.d
-# (the login theme only applies when the theme files are there)
-if [ -f /usr/share/sddm/themes/ravana/Main.qml ]; then
-cat > /etc/sddm.conf.d/10-ravana.conf <<'SDDM'
-[Theme]
-Current=ravana
-CursorTheme=breeze_cursors
-Font=Inter,10
-SDDM
+# --- macOS look on stock Plasma: WhiteSur (pinned commits), made the default for new users
+get() { git clone -q "https://github.com/vinceliuice/$1.git" "/tmp/$1" && git -C "/tmp/$1" checkout -q "$2"; }
+get WhiteSur-kde         cf4df59ce91004f7ea39358b1b8ff917d5c329f7
+get WhiteSur-icon-theme  73d8040da51a9ed74e47c7366e7e9ff437601a5c
+get WhiteSur-cursors     e190baf618ed95ee217d2fd45589bd309b37672b
+get WhiteSur-gtk-theme   d5782652d412137e26fb8ff55b55a5572e4c6995
+(cd /tmp/WhiteSur-kde && bash ./install.sh) || echo "::warning::WhiteSur-kde install failed"
+(cd /tmp/WhiteSur-icon-theme && bash ./install.sh -d /usr/share/icons) || echo "::warning::WhiteSur icons failed"
+(cd /tmp/WhiteSur-cursors && bash ./install.sh) || echo "::warning::WhiteSur cursors failed"
+(cd /tmp/WhiteSur-gtk-theme && bash ./install.sh -d /usr/share/themes -c Dark -c Light -l) || echo "::warning::WhiteSur GTK theme failed"
+ls /usr/share/plasma/look-and-feel /usr/share/icons /usr/share/Kvantum /usr/share/aurorae/themes 2>&1 | head -40
+
+# Ravana's own global theme = WhiteSur dark + our layout (menu bar on top, floating dock below)
+LNF=/usr/share/plasma/look-and-feel
+if [ -d "$LNF/com.github.vinceliuice.WhiteSur-dark" ]; then
+    cp -a "$LNF/com.github.vinceliuice.WhiteSur-dark" "$LNF/org.ravana.macos"
+    python3 - <<'PY'
+import json
+p="/usr/share/plasma/look-and-feel/org.ravana.macos/metadata.json"
+d=json.load(open(p)); d["KPlugin"]["Id"]="org.ravana.macos"; d["KPlugin"]["Name"]="Ravana (macOS style)"
+json.dump(d,open(p,"w"),indent=2)
+PY
+    mkdir -p "$LNF/org.ravana.macos/contents/layouts"
+    cat > "$LNF/org.ravana.macos/contents/layouts/org.kde.plasma.desktop-layout.js" <<'JS'
+// Ravana OS: macOS-style layout from stock Plasma parts (no custom widgets, nothing to break)
+var ds = desktops();
+for (var i = 0; i < ds.length; i++) {
+    ds[i].wallpaperPlugin = "org.kde.image";
+    ds[i].currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
+    ds[i].writeConfig("Image", "file:///usr/share/wallpapers/Ravana/");
+}
+// menu bar
+var bar = new Panel;
+bar.location = "top";
+bar.height = 28;
+bar.hiding = "none";
+bar.addWidget("org.kde.plasma.kickoff");
+bar.addWidget("org.kde.plasma.appmenu");
+bar.addWidget("org.kde.plasma.panelspacer");
+bar.addWidget("org.kde.plasma.systemtray");
+bar.addWidget("org.kde.plasma.digitalclock");
+// dock
+var dock = new Panel;
+dock.location = "bottom";
+dock.height = 60;
+dock.alignment = "center";
+dock.lengthMode = "fit";
+dock.floating = true;
+dock.hiding = "dodgewindows";
+dock.addWidget("org.kde.plasma.icontasks");
+JS
+else
+    echo "::warning::WhiteSur look-and-feel missing: layout not installed"
 fi
-bash /tmp/ravana-build/55-ravana-shell-config.sh || true
-kwriteconfig6 --file /etc/xdg/kwinrc --group TabBox --key LayoutName org.kde.breeze.desktop
-kwriteconfig6 --file /etc/xdg/kwinrc --group TabBox --key ApplicationsMode 0
-kwriteconfig6 --file /etc/xdg/kwinrc --group TabBoxAlternative --key LayoutName org.kde.breeze.desktop
+kwriteconfig6 --file /etc/xdg/kdeglobals --group KDE --key LookAndFeelPackage org.ravana.macos
+# macOS window buttons on the left
+kwriteconfig6 --file /etc/xdg/kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft XIA
+kwriteconfig6 --file /etc/xdg/kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight ""
+# the login screen uses Ravana's theme when present
+mkdir -p /etc/sddm.conf.d
+if [ -f /usr/share/sddm/themes/ravana/Main.qml ]; then
+    printf '[Theme]\nCurrent=ravana\nCursorTheme=WhiteSur-cursors\nFont=Inter,10\n' > /etc/sddm.conf.d/10-ravana.conf
+fi
 
 # --- installing next to another Linux
 # Own boot-loader folder on the shared EFI partition (Kubuntu's default "ubuntu" would collide with

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Remix the official Kubuntu ISO: add Ravana's files, Quickshell and the gaming stack to its system,
 # then rebuild the ISO with the same boot setup.
-# Usage (root): remix.sh <kubuntu.iso> <quickshell.tar.gz> <out.iso>
+# Usage (root): remix.sh <kubuntu.iso> <out.iso>
 set -euxo pipefail
-SRC_ISO="$(realpath "$1")"; QS="$(realpath "$2")"; OUT="$(realpath -m "$3")"
+SRC_ISO="$(realpath "$1")"; OUT="$(realpath -m "$2")"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 W="${WORKDIR:-/mnt/remix}"; mkdir -p "$W"; cd "$W"
 
@@ -12,23 +12,10 @@ xorriso -osirrox on -indev "$SRC_ISO" -extract / iso >/dev/null 2>&1
 chmod -R u+w iso
 unsquashfs -f -d rootfs iso/casper/filesystem.squashfs >/dev/null
 
-# 2. Ravana's files (whitelist: the Fedora image's other files do not apply here)
+# 2. Ravana's files: wallpapers, login and boot themes, logo (the desktop itself is stock KDE Plasma)
 OV="$REPO/system_files"
-cp_into() { [ -e "$OV/$1" ] && { mkdir -p "rootfs/$(dirname "${2:-$1}")"; cp -a "$OV/$1" "rootfs/${2:-$1}"; } || echo "missing in overlay: $1"; }
-for d in usr/share/ravana usr/share/sddm usr/share/wallpapers usr/share/plymouth usr/share/icons usr/share/kwin \
-         usr/share/kglobalaccel usr/share/aurorae usr/share/color-schemes usr/share/konsole usr/share/plasma \
-         usr/share/applications usr/share/sounds usr/share/pixmaps etc/ravana; do cp_into "$d"; done
-mkdir -p rootfs/usr/lib/x86_64-linux-gnu/qt6/qml/org
-cp -a "$OV/usr/lib64/qt6/qml/org/ravana" rootfs/usr/lib/x86_64-linux-gnu/qt6/qml/org/
-for f in usr/bin/ravana-settings usr/bin/ravana-ui usr/libexec/ravana-ui-enabled usr/libexec/ravana-osd \
-         etc/xdg/autostart/ravana-setup.desktop; do cp_into "$f"; done
-for f in ravana-shell.service ravana-osd.service; do cp_into "usr/lib/systemd/user/$f"; done
-for d in ravana-shell.service.d ravana-osd.service.d plasma-plasmashell.service.d plasma-polkit-agent.service.d; do
-    cp_into "usr/lib/systemd/user/$d"; done
-tar -C rootfs -xzf "$QS"                       # Quickshell, built for this release
-mkdir -p rootfs/tmp/ravana-build
-cp "$REPO"/build_files/55-ravana-shell-config.sh rootfs/tmp/ravana-build/
-tar -xzOf "$QS" ./quickshell-runtime-packages.txt > rootfs/tmp/quickshell-runtime-packages.txt
+cp_into() { [ -e "$OV/$1" ] && { mkdir -p "rootfs/$(dirname "$1")"; cp -a "$OV/$1" "rootfs/$1"; } || echo "missing in overlay: $1"; }
+for d in usr/share/wallpapers usr/share/sddm usr/share/plymouth usr/share/icons/hicolor; do cp_into "$d"; done
 cp "$REPO/kubuntu/chroot-setup.sh" rootfs/tmp/chroot-setup.sh
 
 # 3. run the setup inside the system
