@@ -19,7 +19,7 @@ for d in usr/share/wallpapers usr/share/sddm usr/share/plymouth usr/share/icons/
 cp "$REPO/kubuntu/chroot-setup.sh" rootfs/tmp/chroot-setup.sh
 
 # 3. run the setup inside the system
-mount --bind /dev rootfs/dev; mount -t proc proc rootfs/proc; mount -t sysfs sys rootfs/sys; mount --bind /run rootfs/run
+mount --rbind /dev rootfs/dev; mount -t proc proc rootfs/proc; mount -t sysfs sys rootfs/sys; mount --bind /run rootfs/run
 cp /etc/resolv.conf rootfs/etc/resolv.conf.host; mv rootfs/etc/resolv.conf rootfs/etc/resolv.conf.orig 2>/dev/null || true
 cp /etc/resolv.conf rootfs/etc/resolv.conf
 trap 'umount -R rootfs/dev rootfs/proc rootfs/sys rootfs/run 2>/dev/null || true' EXIT

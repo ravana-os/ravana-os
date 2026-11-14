@@ -36,8 +36,7 @@ echo "steam steam/license note" | debconf-set-selections
 optional() { for p in "$@"; do apt-get install -y -qq --no-install-recommends "$p" || echo "::warning::optional package $p not installed"; done; }
 
 # --- what the macOS look needs
-apt-get install -y -qq --no-install-recommends git ca-certificates fonts-inter os-prober qt6-style-kvantum kvantum \
-    sassc gtk2-engines-murrine libglib2.0-dev-bin 2>&1 | tail -3 || true
+apt-get install -y -qq --no-install-recommends sassc gtk2-engines-murrine libglib2.0-dev-bin
 apt-get install -y -qq --no-install-recommends qt6-style-kvantum fonts-inter os-prober git ca-certificates
 
 # --- gaming
@@ -60,7 +59,7 @@ get WhiteSur-gtk-theme   d5782652d412137e26fb8ff55b55a5572e4c6995
 (cd /tmp/WhiteSur-kde && bash ./install.sh) || echo "::warning::WhiteSur-kde install failed"
 (cd /tmp/WhiteSur-icon-theme && bash ./install.sh -d /usr/share/icons) || echo "::warning::WhiteSur icons failed"
 (cd /tmp/WhiteSur-cursors && bash ./install.sh) || echo "::warning::WhiteSur cursors failed"
-(cd /tmp/WhiteSur-gtk-theme && bash ./install.sh -d /usr/share/themes -c Dark -c Light -l) || echo "::warning::WhiteSur GTK theme failed"
+(cd /tmp/WhiteSur-gtk-theme && bash ./install.sh -d /usr/share/themes -c Dark -c Light) || echo "::warning::WhiteSur GTK theme failed"
 ls /usr/share/plasma/look-and-feel /usr/share/icons /usr/share/Kvantum /usr/share/aurorae/themes 2>&1 | head -40
 
 # Ravana's own global theme = WhiteSur dark + our layout (menu bar on top, floating dock below)
