@@ -110,7 +110,7 @@ kwriteconfig6 --file /etc/xdg/kdeglobals --group KDE --key LookAndFeelPackage or
 # wallpaper also in the theme's defaults (Kubuntu's own default would win otherwise)
 D=/usr/share/plasma/look-and-feel/org.ravana.macos/contents/defaults
 [ -f "$D" ] && { kwriteconfig6 --file "$D" --group Wallpaper --key Image Ravana; grep -n -A2 Wallpaper "$D"; }
-ls /usr/share/wallpapers/Ravana /usr/share/wallpapers/Ravana/contents 2>&1 | head
+ls /usr/share/wallpapers/Ravana /usr/share/wallpapers/Ravana/contents 2>&1 | head || true
 # Kubuntu's default wallpaper package points at Ravana's
 for w in /usr/share/wallpapers/Next /usr/share/wallpapers/Kubuntu*; do
     [ -e "$w" ] && echo "default wallpaper candidate: $w"; done

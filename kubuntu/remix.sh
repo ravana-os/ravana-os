@@ -14,8 +14,14 @@ unsquashfs -f -d rootfs iso/casper/filesystem.squashfs >/dev/null
 
 # 2. Ravana's files: wallpapers, login and boot themes, logo (the desktop itself is stock KDE Plasma)
 OV="$REPO/system_files"
-cp_into() { [ -e "$OV/$1" ] && { mkdir -p "rootfs/$(dirname "$1")"; cp -a "$OV/$1" "rootfs/$1"; } || echo "missing in overlay: $1"; }
+# (a folder's contents are merged into the same folder, never nested inside it)
+cp_into() {
+    if [ -d "$OV/$1" ]; then mkdir -p "rootfs/$1"; cp -a "$OV/$1/." "rootfs/$1/"
+    elif [ -e "$OV/$1" ]; then mkdir -p "rootfs/$(dirname "$1")"; cp -a "$OV/$1" "rootfs/$1"
+    else echo "missing in overlay: $1"; fi
+}
 for d in usr/share/wallpapers usr/share/sddm usr/share/plymouth usr/share/icons/hicolor; do cp_into "$d"; done
+ls -d rootfs/usr/share/wallpapers/Ravana rootfs/usr/share/sddm/themes/ravana rootfs/usr/share/icons/hicolor/128x128/apps/ravana-os.png
 cp "$REPO/kubuntu/chroot-setup.sh" rootfs/tmp/chroot-setup.sh
 
 # 3. run the setup inside the system
