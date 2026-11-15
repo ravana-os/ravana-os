@@ -233,6 +233,19 @@ for f in $(grep -rl -E 'Try Kubuntu|Install Kubuntu' /usr/share/calamares /etc/c
     sed -i 's/Try Kubuntu/Try Ravana OS/g; s/Install Kubuntu/Install Ravana OS/g' "$f"
 done
 
+# The "Try Kubuntu / Install Kubuntu" screen is kubuntu-installer-prompt, a compiled Kubuntu app.
+# Ravana's live session goes straight to the desktop instead; "Install Ravana OS" is on it.
+# (diverted, not deleted, so an update of the package cannot bring it back)
+for f in $(grep -rl 'kubuntu-installer-prompt' /etc/xdg/autostart /usr/share/applications /etc/skel /usr/share/kubuntu-default-settings 2>/dev/null); do
+    echo "switching off: $f"
+    dpkg-divert --local --rename --divert "$f.ravana-off" --add "$f"
+done
+# Kubuntu web links on the live desktop
+for f in $(grep -rl -E 'kubuntu\.org|HOW-TO' /usr/share/applications/*.desktop 2>/dev/null); do
+    echo "removing link: $f"
+    dpkg-divert --local --rename --divert "$f.ravana-off" --add "$f"
+done
+
 # where the remaining Kubuntu texts come from (binary-safe search of /usr and /etc)
 grep -rIl --exclude-dir=locale -E 'Try Kubuntu|Kubuntu Website' /usr/share /usr/lib/x86_64-linux-gnu/qt6/qml /etc /usr/bin /usr/libexec 2>/dev/null | head -20 || true
 grep -rl -a -E 'Try Kubuntu' /usr/bin /usr/libexec /usr/lib/x86_64-linux-gnu 2>/dev/null | head -5 || true
