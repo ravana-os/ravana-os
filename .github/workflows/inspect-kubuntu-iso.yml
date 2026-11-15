@@ -24,25 +24,18 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xorriso squashfs-tools >/dev/null
           mkdir -p report
+          xorriso -osirrox on -indev kubuntu.iso -extract /casper/filesystem.squashfs fs.sqfs >/dev/null 2>&1
+          sudo unsquashfs -d root -f fs.sqfs >/dev/null
           {
-            echo "## ISO volume"; xorriso -indev kubuntu.iso -pvd_info 2>&1 | grep -E 'Volume Id|Volume size'
-            echo "## top level and casper"; xorriso -indev kubuntu.iso -find / -maxdepth 2 -exec lsdir 2>&1 | head -60
-            xorriso -indev kubuntu.iso -ls /casper 2>&1 | head -40
-            echo "## boot images (replay command)"; xorriso -indev kubuntu.iso -report_el_torito as_mkisofs 2>&1
-            echo "## grub.cfg"; xorriso -osirrox on -indev kubuntu.iso -cat /boot/grub/grub.cfg 2>/dev/null | head -60
-          } > report/iso-layout.txt 2>&1 || true
-          xorriso -osirrox on -indev kubuntu.iso -extract /casper casper >/dev/null 2>&1 || true
-          ls -la casper > report/casper-ls.txt 2>&1 || true
-          for f in casper/*.squashfs; do echo "== $f"; unsquashfs -s "$f" | grep -E 'Filesystem size|Compression|Number of inodes'; done > report/squashfs-info.txt 2>&1 || true
-          cat casper/*.manifest 2>/dev/null | wc -l >> report/squashfs-info.txt
-          # installer config and what the live layer carries
-          for f in casper/*.squashfs; do
-            unsquashfs -d "x-$(basename $f .squashfs)" -n "$f" etc/calamares usr/share/calamares etc/casper.conf etc/os-release usr/lib/os-release etc/sddm.conf.d etc/lightdm >/dev/null 2>&1 || true
-          done
-          find x-* -maxdepth 4 | head -200 > report/extracted-tree.txt
-          for f in $(find x-* -name 'settings.conf' -o -name 'unpackfs.conf' -o -name 'bootloader.conf' -o -name 'partition.conf' -o -name 'users.conf' | head -20); do echo "===== $f"; cat "$f"; done > report/calamares-config.txt 2>&1
-          cat x-*/etc/os-release x-*/etc/casper.conf 2>/dev/null > report/os-release.txt
-          ls -la; cat report/squashfs-info.txt
+            echo "## files with 'Try Kubuntu' / 'Kubuntu Website'"
+            sudo grep -rIl --exclude-dir=locale -E 'Try Kubuntu|Kubuntu Website' root/usr root/etc 2>/dev/null | head -30
+            echo "## binaries"
+            sudo grep -rl -a 'Try Kubuntu' root/usr/bin root/usr/libexec root/usr/lib/x86_64-linux-gnu 2>/dev/null | head
+            echo "## autostart"
+            ls root/etc/xdg/autostart | head -80
+          } > report/strings.txt 2>&1
+          for f in $(sudo grep -rIl --exclude-dir=locale -E 'Try Kubuntu|Kubuntu Website' root/usr root/etc 2>/dev/null | head -8); do echo "===== $f"; sudo head -c 3000 "$f"; echo; done > report/string-files.txt 2>&1
+          cat report/strings.txt
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
