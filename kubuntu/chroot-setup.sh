@@ -59,7 +59,7 @@ get WhiteSur-gtk-theme   d5782652d412137e26fb8ff55b55a5572e4c6995
 (cd /tmp/WhiteSur-kde && bash ./install.sh) || echo "::warning::WhiteSur-kde install failed"
 (cd /tmp/WhiteSur-icon-theme && bash ./install.sh -d /usr/share/icons) || echo "::warning::WhiteSur icons failed"
 (cd /tmp/WhiteSur-cursors && bash ./install.sh) || echo "::warning::WhiteSur cursors failed"
-(cd /tmp/WhiteSur-gtk-theme && bash ./install.sh -d /usr/share/themes -c Dark -c Light) || echo "::warning::WhiteSur GTK theme failed"
+(cd /tmp/WhiteSur-gtk-theme && TERM=xterm bash ./install.sh -d /usr/share/themes -c dark -c light) || echo "::warning::WhiteSur GTK theme failed"
 ls /usr/share/plasma/look-and-feel /usr/share/icons /usr/share/Kvantum /usr/share/aurorae/themes 2>&1 | head -40
 
 # Ravana's own global theme = WhiteSur dark + our layout (menu bar on top, floating dock below)
@@ -79,14 +79,16 @@ var ds = desktops();
 for (var i = 0; i < ds.length; i++) {
     ds[i].wallpaperPlugin = "org.kde.image";
     ds[i].currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
-    ds[i].writeConfig("Image", "file:///usr/share/wallpapers/Ravana/");
+    ds[i].writeConfig("Image", "/usr/share/wallpapers/Ravana/");
 }
 // menu bar
 var bar = new Panel;
 bar.location = "top";
 bar.height = 28;
 bar.hiding = "none";
-bar.addWidget("org.kde.plasma.kickoff");
+var menu = bar.addWidget("org.kde.plasma.kickoff");
+menu.currentConfigGroup = ["General"];
+menu.writeConfig("icon", "ravana-logo-white");
 bar.addWidget("org.kde.plasma.appmenu");
 bar.addWidget("org.kde.plasma.panelspacer");
 bar.addWidget("org.kde.plasma.systemtray");
@@ -105,6 +107,13 @@ else
     echo "::warning::WhiteSur look-and-feel missing: layout not installed"
 fi
 kwriteconfig6 --file /etc/xdg/kdeglobals --group KDE --key LookAndFeelPackage org.ravana.macos
+# wallpaper also in the theme's defaults (Kubuntu's own default would win otherwise)
+D=/usr/share/plasma/look-and-feel/org.ravana.macos/contents/defaults
+[ -f "$D" ] && { kwriteconfig6 --file "$D" --group Wallpaper --key Image Ravana; grep -n -A2 Wallpaper "$D"; }
+ls /usr/share/wallpapers/Ravana /usr/share/wallpapers/Ravana/contents 2>&1 | head
+# Kubuntu's default wallpaper package points at Ravana's
+for w in /usr/share/wallpapers/Next /usr/share/wallpapers/Kubuntu*; do
+    [ -e "$w" ] && echo "default wallpaper candidate: $w"; done
 # macOS window buttons on the left
 kwriteconfig6 --file /etc/xdg/kwinrc --group org.kde.kdecoration2 --key ButtonsOnLeft XIA
 kwriteconfig6 --file /etc/xdg/kwinrc --group org.kde.kdecoration2 --key ButtonsOnRight ""
@@ -203,6 +212,25 @@ TS
 # never jump to a new Ubuntu release by itself (stays on the 26.04 LTS line)
 apt-get install -y -qq --no-install-recommends unattended-upgrades
 sed -i -E 's/^Prompt=.*/Prompt=never/' /etc/update-manager/release-upgrades 2>/dev/null || true
+
+# --- Kubuntu names in the live session and installer -> Ravana OS
+for f in /usr/share/applications/kubuntu-calamares.desktop /usr/share/applications/calamares-launch-oem.desktop; do
+    [ -f "$f" ] && sed -i -E 's/^Name=Install Kubuntu.*/Name=Install Ravana OS/; s/^Name=(.*)Kubuntu/Name=\1Ravana OS/; s/^Icon=.*/Icon=ravana-os/' "$f"
+done
+B=$(ls -d /etc/calamares/branding/* | head -1)
+if [ -f "$B/branding.desc" ]; then
+    sed -i -E 's/(productName|shortProductName|versionedName|shortVersionedName|bootloaderEntryName): *.*Kubuntu(.*)/\1: Ravana OS\2/' "$B/branding.desc"
+    sed -i -E 's/(productName|shortProductName|versionedName|shortVersionedName): *Kubuntu(.*)/\1: Ravana OS\2/' "$B/branding.desc"
+    for img in $(grep -E '^\s*(productLogo|productIcon):' "$B/branding.desc" | sed -E 's/.*: *"?([^"]+)"?/\1/'); do
+        cp /usr/share/icons/hicolor/128x128/apps/ravana-os.png "$B/$img" 2>/dev/null || true
+    done
+    grep -E 'Name|Logo|Icon' "$B/branding.desc" | head -12
+fi
+# the welcome screen (Try / Install) and live desktop links
+grep -rl -i -E 'Try Kubuntu|Install Kubuntu|Kubuntu Website|kubuntu.org' /usr/share/calamares /etc/calamares /usr/share/kubuntu* /etc/skel /usr/share/applications 2>/dev/null | head -20 || true
+for f in $(grep -rl -E 'Try Kubuntu|Install Kubuntu' /usr/share/calamares /etc/calamares 2>/dev/null); do
+    sed -i 's/Try Kubuntu/Try Ravana OS/g; s/Install Kubuntu/Install Ravana OS/g' "$f"
+done
 
 # (what shows the "Try / Install" welcome screen: printed so it can be rebranded)
 grep -l -i -E 'welcome|installer|calamares' /etc/xdg/autostart/*.desktop /usr/share/applications/*.desktop 2>/dev/null | while read -r f; do
