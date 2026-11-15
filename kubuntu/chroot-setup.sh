@@ -59,7 +59,8 @@ get WhiteSur-gtk-theme   d5782652d412137e26fb8ff55b55a5572e4c6995
 (cd /tmp/WhiteSur-kde && bash ./install.sh) || echo "::warning::WhiteSur-kde install failed"
 (cd /tmp/WhiteSur-icon-theme && bash ./install.sh -d /usr/share/icons) || echo "::warning::WhiteSur icons failed"
 (cd /tmp/WhiteSur-cursors && bash ./install.sh) || echo "::warning::WhiteSur cursors failed"
-(cd /tmp/WhiteSur-gtk-theme && TERM=xterm bash ./install.sh -d /usr/share/themes -c dark -c light) || echo "::warning::WhiteSur GTK theme failed"
+(cd /tmp/WhiteSur-gtk-theme && TERM=xterm bash -x ./install.sh -d /usr/share/themes -c dark -c light > /tmp/gtk-install.log 2>&1) \
+    || { echo "::warning::WhiteSur GTK theme failed"; tail -40 /tmp/gtk-install.log; }
 ls /usr/share/plasma/look-and-feel /usr/share/icons /usr/share/Kvantum /usr/share/aurorae/themes 2>&1 | head -40
 
 # Ravana's own global theme = WhiteSur dark + our layout (menu bar on top, floating dock below)
@@ -231,6 +232,10 @@ grep -rl -i -E 'Try Kubuntu|Install Kubuntu|Kubuntu Website|kubuntu.org' /usr/sh
 for f in $(grep -rl -E 'Try Kubuntu|Install Kubuntu' /usr/share/calamares /etc/calamares 2>/dev/null); do
     sed -i 's/Try Kubuntu/Try Ravana OS/g; s/Install Kubuntu/Install Ravana OS/g' "$f"
 done
+
+# where the remaining Kubuntu texts come from (binary-safe search of /usr and /etc)
+grep -rIl --exclude-dir=locale -E 'Try Kubuntu|Kubuntu Website' /usr/share /usr/lib/x86_64-linux-gnu/qt6/qml /etc /usr/bin /usr/libexec 2>/dev/null | head -20 || true
+grep -rl -a -E 'Try Kubuntu' /usr/bin /usr/libexec /usr/lib/x86_64-linux-gnu 2>/dev/null | head -5 || true
 
 # (what shows the "Try / Install" welcome screen: printed so it can be rebranded)
 grep -l -i -E 'welcome|installer|calamares' /etc/xdg/autostart/*.desktop /usr/share/applications/*.desktop 2>/dev/null | while read -r f; do
