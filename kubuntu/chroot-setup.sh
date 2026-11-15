@@ -59,7 +59,7 @@ get WhiteSur-gtk-theme   d5782652d412137e26fb8ff55b55a5572e4c6995
 (cd /tmp/WhiteSur-kde && bash ./install.sh) || echo "::warning::WhiteSur-kde install failed"
 (cd /tmp/WhiteSur-icon-theme && bash ./install.sh -d /usr/share/icons) || echo "::warning::WhiteSur icons failed"
 (cd /tmp/WhiteSur-cursors && bash ./install.sh) || echo "::warning::WhiteSur cursors failed"
-(cd /tmp/WhiteSur-gtk-theme && TERM=xterm bash -x ./install.sh -d /usr/share/themes -c dark -c light > /tmp/gtk-install.log 2>&1) \
+(cd /tmp/WhiteSur-gtk-theme && env -u SUDO_USER -u SUDO_UID -u SUDO_GID USER=root LOGNAME=root HOME=/root TERM=xterm bash -x ./install.sh -d /usr/share/themes -c dark -c light > /tmp/gtk-install.log 2>&1) \
     || { echo "::warning::WhiteSur GTK theme failed"; tail -40 /tmp/gtk-install.log; }
 ls /usr/share/plasma/look-and-feel /usr/share/icons /usr/share/Kvantum /usr/share/aurorae/themes 2>&1 | head -40
 
@@ -233,13 +233,14 @@ for f in $(grep -rl -E 'Try Kubuntu|Install Kubuntu' /usr/share/calamares /etc/c
     sed -i 's/Try Kubuntu/Try Ravana OS/g; s/Install Kubuntu/Install Ravana OS/g' "$f"
 done
 
-# The "Try Kubuntu / Install Kubuntu" screen is kubuntu-installer-prompt, a compiled Kubuntu app.
-# Ravana's live session goes straight to the desktop instead; "Install Ravana OS" is on it.
-# (diverted, not deleted, so an update of the package cannot bring it back)
-for f in $(grep -rl 'kubuntu-installer-prompt' /etc/xdg/autostart /usr/share/applications /etc/skel /usr/share/kubuntu-default-settings 2>/dev/null); do
-    echo "switching off: $f"
-    dpkg-divert --local --rename --divert "$f.ravana-off" --add "$f"
-done
+# The "Try Kubuntu / Install Kubuntu" screen is kubuntu-installer-prompt: the live session script
+# runs it first and starts Plasma when it exits. Ravana's prompt exits at once, so the live USB goes
+# straight to the desktop, where "Install Ravana OS" is. (Diverted, so a package update keeps ours.)
+if [ -x /usr/bin/kubuntu-installer-prompt ]; then
+    dpkg-divert --local --rename --divert /usr/bin/kubuntu-installer-prompt.kubuntu --add /usr/bin/kubuntu-installer-prompt
+    printf '#!/bin/sh\n# Ravana OS: no Try/Install prompt; the desktop has "Install Ravana OS"\nexit 0\n' > /usr/bin/kubuntu-installer-prompt
+    chmod 0755 /usr/bin/kubuntu-installer-prompt
+fi
 # Kubuntu web links on the live desktop
 for f in $(grep -rl -E 'kubuntu\.org|HOW-TO' /usr/share/applications/*.desktop 2>/dev/null); do
     echo "removing link: $f"

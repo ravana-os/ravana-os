@@ -61,7 +61,7 @@ jobs:
       - name: Boot it and look
         run: |
           scripts/live-boot-check.sh --install-tools
-          BOOT_KEYS="tab tab spc" scripts/live-boot-check.sh output/ravana-os-kubuntu-live.iso boot-check 600
+          scripts/live-boot-check.sh output/ravana-os-kubuntu-live.iso boot-check 600
           cat boot-check/network.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
