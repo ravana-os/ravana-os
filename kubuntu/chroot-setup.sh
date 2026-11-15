@@ -124,6 +124,90 @@ GRUB_DISABLE_OS_PROBER=false
 GRUB_DISTRIBUTOR="Ravana OS"
 GRUBD
 
+# --- updates that can always be undone
+# Installs use btrfs with Ubuntu's @ / @home layout (what Timeshift needs). Before apt changes
+# anything, a Timeshift snapshot is taken; GRUB lists the snapshots ("Ravana OS snapshots") so a
+# bad update is undone by picking the one from before it, even when the desktop no longer starts.
+apt-get install -y -qq --no-install-recommends timeshift btrfs-progs inotify-tools make gawk
+sed -i -E 's/^defaultFileSystemType:.*/defaultFileSystemType: "btrfs"/' /etc/calamares/modules/partition.conf
+grep -n -A12 -i 'btrfsSubvolumes' /etc/calamares/modules/mount.conf || echo "mount.conf has no btrfs subvolume list"
+python3 - <<'PY'
+# Ubuntu's layout: @ for the system, @home for people's files (Timeshift restores @ only)
+import re
+p = "/etc/calamares/modules/mount.conf"
+s = open(p).read()
+s = re.sub(r"\nbtrfsSubvolumes:.*?(?=\n\S|\Z)", "", s, flags=re.S)
+s = s.rstrip("\n") + """
+btrfsSubvolumes:
+    - mountPoint: /
+      subvolume: /@
+    - mountPoint: /home
+      subvolume: /@home
+"""
+open(p, "w").write(s)
+PY
+grep -n -A6 'btrfsSubvolumes' /etc/calamares/modules/mount.conf
+
+# grub-btrfs (pinned release): adds the snapshots to the GRUB menu and keeps it current
+git clone -q --depth 1 --branch v4.14 https://github.com/Antynea/grub-btrfs.git /tmp/grub-btrfs
+test "$(git -C /tmp/grub-btrfs rev-parse HEAD)" = 2fcfbe967637166b88dadd49c834807243a941bf || \
+    test "$(git -C /tmp/grub-btrfs rev-parse 'HEAD^{}')" = 2fcfbe967637166b88dadd49c834807243a941bf || \
+    echo "::warning::grub-btrfs v4.14 is not the reviewed commit"
+make -C /tmp/grub-btrfs install SYSTEMD=true INITCPIO=false >/dev/null
+sed -i 's|^#\?GRUB_BTRFS_SUBMENUNAME=.*|GRUB_BTRFS_SUBMENUNAME="Ravana OS snapshots"|' /etc/default/grub-btrfs/config
+mkdir -p /etc/systemd/system/grub-btrfsd.service.d
+cat > /etc/systemd/system/grub-btrfsd.service.d/10-timeshift.conf <<'UNIT'
+[Service]
+ExecStart=
+ExecStart=/usr/bin/grub-btrfsd --syslog --timeshift-auto
+UNIT
+systemctl enable grub-btrfsd.service
+
+# snapshot before every apt change (at most one per 10 minutes; skipped quietly when the root
+# is not btrfs, e.g. the live USB)
+cat > /usr/libexec/ravana-snapshot <<'SNAP'
+#!/bin/sh
+[ "$(findmnt -n -o FSTYPE /)" = btrfs ] || exit 0
+command -v timeshift >/dev/null || exit 0
+stamp=/run/ravana-snapshot.stamp
+if [ -f "$stamp" ] && [ $(( $(date +%s) - $(stat -c %Y "$stamp") )) -lt 600 ]; then exit 0; fi
+touch "$stamp"
+timeout 300 timeshift --create --scripted --tags O --comments "before update $(date '+%Y-%m-%d %H:%M')" >/dev/null 2>&1 || true
+exit 0
+SNAP
+chmod 0755 /usr/libexec/ravana-snapshot
+echo 'DPkg::Pre-Invoke { "/usr/libexec/ravana-snapshot"; };' > /etc/apt/apt.conf.d/80ravana-snapshot
+# Timeshift settings for new installs: btrfs mode, keep 5 update snapshots, 3 daily, 2 weekly
+mkdir -p /etc/timeshift
+cat > /etc/timeshift/default.json <<'TS'
+{
+  "btrfs_mode" : "true",
+  "include_btrfs_home_for_backup" : "false",
+  "include_btrfs_home_for_restore" : "false",
+  "stop_cron_emails" : "true",
+  "schedule_monthly" : "false",
+  "schedule_weekly" : "true",
+  "schedule_daily" : "true",
+  "schedule_hourly" : "false",
+  "schedule_boot" : "false",
+  "count_monthly" : "0",
+  "count_weekly" : "2",
+  "count_daily" : "3",
+  "count_hourly" : "0",
+  "count_boot" : "0",
+  "count_ondemand" : "5"
+}
+TS
+
+# Ubuntu's own updates: security fixes install by themselves, everything else waits for the user;
+# never jump to a new Ubuntu release by itself (stays on the 26.04 LTS line)
+apt-get install -y -qq --no-install-recommends unattended-upgrades
+sed -i -E 's/^Prompt=.*/Prompt=never/' /etc/update-manager/release-upgrades 2>/dev/null || true
+
+# (what shows the "Try / Install" welcome screen: printed so it can be rebranded)
+grep -l -i -E 'welcome|installer|calamares' /etc/xdg/autostart/*.desktop /usr/share/applications/*.desktop 2>/dev/null | while read -r f; do
+    echo "== $f ($(dpkg -S "$f" 2>/dev/null | cut -d: -f1))"; grep -E '^(Exec|Name)=' "$f"; done || true
+
 # --- tidy
 [ -f /root/apt-keep/cdrom.sources ] && mv /root/apt-keep/cdrom.sources /etc/apt/sources.list.d/cdrom.sources
 [ -f /root/apt-keep/sources.list ] && mv /root/apt-keep/sources.list /etc/apt/sources.list
